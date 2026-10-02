@@ -1,4 +1,5 @@
 {
+    "name": "project-working",
     "private": true,
     "type": "module",
     "scripts": {
