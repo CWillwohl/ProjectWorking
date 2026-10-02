@@ -11,53 +11,71 @@ Working é um sistema de gerenciamento de registros de entrada e saída, criado 
 - [Redis](https://redis.io/)
 
 ## Requisitos
-- [PHP](https://www.php.net/)
-- [Composer](https://getcomposer.org/)
-- [Docker](https://docs.docker.com/get-docker/)
+- [Docker](https://docs.docker.com/get-docker/) com o plugin [Docker Compose](https://docs.docker.com/compose/) (v2)
 
-### Instalação
+Não é necessário ter PHP, Composer ou Node instalados na máquina: tudo roda dentro dos containers.
+
+## Ambiente Docker
+| Serviço   | Descrição                                                        | Acesso                  |
+|-----------|------------------------------------------------------------------|-------------------------|
+| `nginx`   | Servidor web                                                     | http://localhost:8000   |
+| `app`     | PHP 8.2 (FPM) com as extensões do projeto, Composer e Xdebug     | -                       |
+| `queue`   | Worker das filas (`php artisan queue:listen`)                    | -                       |
+| `vite`    | Servidor de desenvolvimento do Vite (hot reload dos assets)      | http://localhost:5173   |
+| `mysql`   | MySQL 8.4 (bancos `working` e `testing`)                         | `localhost:3306`        |
+| `redis`   | Redis, utilizado como gerenciador de filas                       | `localhost:6379`        |
+| `mailpit` | Caixa de e-mails local (captura os e-mails enviados pelo sistema) | http://localhost:8025   |
+
+As portas podem ser alteradas no `.env` (`APP_PORT`, `VITE_PORT`, `FORWARD_DB_PORT`, `FORWARD_REDIS_PORT`, `FORWARD_MAILPIT_DASHBOARD_PORT`).
+
+## Instalação
 Siga os passos abaixo para configurar o ambiente de desenvolvimento:
 
 ### 1) Clonar o Repositório
 - git clone https://github.com/CWillwohl/project-working
-- cd working
+- cd project-working
 
-### 2) Instalar Dependências
-Execute o comando abaixo para instalar as dependências do projeto via Composer:
+### 2) Configurar o arquivo .env
+Copie o arquivo de exemplo para desenvolvimento:
 
-- composer install
+- cp .env.dev .env
 
-Configuração do Arquivo .env:
-- Copie o arquivo de exemplo .env.dev ou configure o .env conforme suas preferências
-- Adicione a funcionalidade de SMTP para o envio de e-mails de recuperação de senha. Para testes, recomendo o uso do [Mailtrap.io](https://mailtrap.io/).
-- Atualize as variáveis de ambiente conforme necessário, com especial atenção para as configurações de banco de dados e do sistema de filas. Certifique-se de ajustar as definições relacionadas ao Redis, que é utilizado como gerenciador de filas no projeto.
+O `.env.dev` já vem configurado para os containers. Pontos de atenção:
+- `HOST_UID` e `HOST_GID` devem corresponder ao seu usuário (`id -u` e `id -g`), para que os arquivos criados pelos containers (como `vendor` e `node_modules`) pertençam a você. O padrão é `1000`.
+- Os e-mails (como os de recuperação de senha) são capturados pelo Mailpit em http://localhost:8025. Se preferir usar um SMTP externo, como o [Mailtrap.io](https://mailtrap.io/), altere as variáveis `MAIL_*`.
 
-### 3) Inicializar o Docker (Sail)
-Este projeto utiliza o Laravel Sail como ambiente de desenvolvimento. Para subir os containers do Docker, execute o comando:
+### 3) Subir os containers
+- docker compose up -d --build
 
-- ./vendor/bin/sail up -d
+Na primeira execução o container `app` instala as dependências do Composer, gera a `APP_KEY` e executa as migrations; o container `vite` instala as dependências do NPM. Isso pode levar alguns minutos. Acompanhe com:
 
-### 4) Executar Migrações
-Agora, aplique as migrações de banco de dados para configurar a estrutura inicial:
+- docker compose logs -f app vite
 
-- ./vendor/bin/sail php artisan migrate
+Quando terminar, acesse o projeto em http://localhost:8000.
 
-### 5) Iniciar os Workers
-Agora, inicie os workers para operar os Jobs
-
-- ./vendor/bin/sail php artisan queue:work
-
-Acesse o Projeto
-Com o Docker em execução, você pode acessar o projeto no seu navegador:
-
-http://localhost
+### 4) Popular o banco (opcional)
+- docker compose exec app php artisan db:seed
 
 ### Comandos Úteis
-Para parar os containers do Docker:
-- ./vendor/bin/sail down
+Para parar os containers:
+- docker compose down
 
 Para executar comandos Artisan:
-- ./vendor/bin/sail artisan <comando>
+- docker compose exec app php artisan <comando>
+
+Para executar comandos do Composer:
+- docker compose exec app composer <comando>
+
+Para executar comandos do NPM:
+- docker compose exec vite npm <comando>
+
+Para executar os testes:
+- docker compose exec app php artisan test
+
+Para depurar com Xdebug, defina `XDEBUG_MODE=debug` no `.env` e recrie os containers com `docker compose up -d`. O Xdebug se conecta em `host.docker.internal:9003` quando a requisição tem o gatilho de debug (ex.: extensão Xdebug Helper no navegador).
+
+Para apagar também os dados do MySQL e do Redis:
+- docker compose down -v
 
 ### Considerações Finais
 Sinta-se à vontade para adaptar o arquivo .env conforme suas necessidades, garantindo que todas as variáveis de ambiente estejam corretamente configuradas para o funcionamento do projeto.

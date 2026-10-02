@@ -1,0 +1,3 @@
+# The image only needs the PHP config files, the application code is bind-mounted
+*
+!docker/php/
